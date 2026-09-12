@@ -1,0 +1,93 @@
+{
+  "model_architecture": "Domain-Augmented Bidirectional LSTM with Global Max-Pooling",
+  "vocab_size": 15000,
+  "test_accuracy": 0.9757446808510638,
+  "test_macro_f1": 0.9689063230500566,
+  "target_names": [
+    "negative",
+    "positive",
+    "neutral"
+  ],
+  "sample_tests": {
+    "Where is my order? I placed it last Monday.": {
+      "predicted": "neutral",
+      "expected": "neutral",
+      "confidence": 0.9988386034965515,
+      "probabilities": {
+        "negative": 0.0010956769110634923,
+        "positive": 6.575829320354387e-05,
+        "neutral": 0.9988386034965515
+      }
+    },
+    "I have been waiting for three weeks and no one answers, this is the worst service ever!": {
+      "predicted": "negative",
+      "expected": "negative",
+      "confidence": 0.652823805809021,
+      "probabilities": {
+        "negative": 0.652823805809021,
+        "positive": 0.272141695022583,
+        "neutral": 0.07503450661897659
+      }
+    },
+    "Thank you so much for the swift refund, you have been super helpful!": {
+      "predicted": "positive",
+      "expected": "positive",
+      "confidence": 0.9982171654701233,
+      "probabilities": {
+        "negative": 0.0015394979855045676,
+        "positive": 0.9982171654701233,
+        "neutral": 0.00024336812202818692
+      }
+    },
+    "Why was my card charged twice for the same transaction?! This is ridiculous!": {
+      "predicted": "negative",
+      "expected": "negative",
+      "confidence": 0.9917984008789062,
+      "probabilities": {
+        "negative": 0.9917984008789062,
+        "positive": 0.00432598777115345,
+        "neutral": 0.003875686787068844
+      }
+    },
+    "Could you please explain how to reset my account credentials?": {
+      "predicted": "neutral",
+      "expected": "neutral",
+      "confidence": 0.9999512434005737,
+      "probabilities": {
+        "negative": 4.7176406951621175e-05,
+        "positive": 1.613169047232077e-06,
+        "neutral": 0.9999512434005737
+      }
+    },
+    "I am really happy with the item, it works great!": {
+      "predicted": "neutral",
+      "expected": "positive",
+      "confidence": 0.475218266248703,
+      "probabilities": {
+        "negative": 0.2517232894897461,
+        "positive": 0.27305838465690613,
+        "neutral": 0.475218266248703
+      }
+    },
+    "How can I track my shipment to New York?": {
+      "predicted": "neutral",
+      "expected": "neutral",
+      "confidence": 0.9999938011169434,
+      "probabilities": {
+        "negative": 5.956387667538365e-06,
+        "positive": 2.873758830901352e-07,
+        "neutral": 0.9999938011169434
+      }
+    },
+    "Cancel my order immediately, your company is completely fraudulent!": {
+      "predicted": "neutral",
+      "expected": "negative",
+      "confidence": 0.9955377578735352,
+      "probabilities": {
+        "negative": 0.004401871934533119,
+        "positive": 6.0365942772477865e-05,
+        "neutral": 0.9955377578735352
+      }
+    }
+  }
+}

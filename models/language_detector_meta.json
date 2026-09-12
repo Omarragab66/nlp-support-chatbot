@@ -1,0 +1,41 @@
+{
+  "model": "Subword Char TF-IDF + SGDClassifier",
+  "test_accuracy": 0.9959,
+  "sample_tests": {
+    "Where is my order #55412?": {
+      "predicted": "en",
+      "confidence": 0.9746426505132119,
+      "expected": "en"
+    },
+    "أين طلبي وكيف يمكنني استرجاع المبلغ؟": {
+      "predicted": "ar",
+      "confidence": 1.0,
+      "expected": "ar"
+    },
+    "Où est mon colis et comment puis-je être remboursé?": {
+      "predicted": "fr",
+      "confidence": 1.0,
+      "expected": "fr"
+    },
+    "Wo ist meine Bestellung? Ich möchte sie stornieren.": {
+      "predicted": "de",
+      "confidence": 0.9459935455953231,
+      "expected": "de"
+    },
+    "¿Dónde está mi paquete? Quiero cancelar mi pedido.": {
+      "predicted": "es",
+      "confidence": 0.6922198485202693,
+      "expected": "es"
+    },
+    "Dov'è il mio pacco? Vorrei fare un reso.": {
+      "predicted": "it",
+      "confidence": 0.9574960258510609,
+      "expected": "it"
+    },
+    "Где мой заказ и как оформить возврат?": {
+      "predicted": "ru",
+      "confidence": 1.0,
+      "expected": "ru"
+    }
+  }
+}

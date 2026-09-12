@@ -1,0 +1,121 @@
+{
+  "model": "TF-IDF (1-2 ngrams) + Balanced Logistic Regression",
+  "test_accuracy": 0.996864657725135,
+  "test_macro_f1": 0.9969754070830146,
+  "classes": [
+    "account_management",
+    "billing_and_refunds",
+    "complaint",
+    "greeting_smalltalk",
+    "order_management",
+    "order_status",
+    "out_of_scope"
+  ],
+  "sample_tests": {
+    "Hi, good afternoon!": {
+      "predicted_intent": "greeting_smalltalk",
+      "expected_intent": "greeting_smalltalk",
+      "confidence": 0.9952754500416204,
+      "routing_action": "Direct Greeting Reply (No RAG needed)",
+      "probabilities": {
+        "account_management": 0.000942547676308122,
+        "billing_and_refunds": 0.0008220127868137597,
+        "complaint": 0.0006096715449404509,
+        "greeting_smalltalk": 0.9952754500416204,
+        "order_management": 0.0007192299728947891,
+        "order_status": 0.0005793347928469692,
+        "out_of_scope": 0.0010517531845753412
+      }
+    },
+    "Where is my package and how long does standard shipping take?": {
+      "predicted_intent": "order_status",
+      "expected_intent": "order_status",
+      "confidence": 0.8636375847624885,
+      "routing_action": "Retrieve KB & generate status answer (RAG)",
+      "probabilities": {
+        "account_management": 0.03654091912065205,
+        "billing_and_refunds": 0.05169613464157512,
+        "complaint": 0.00977475772184413,
+        "greeting_smalltalk": 0.008753672931221663,
+        "order_management": 0.020773391914802368,
+        "order_status": 0.8636375847624885,
+        "out_of_scope": 0.008823538907416212
+      }
+    },
+    "I need to cancel order #48291 please": {
+      "predicted_intent": "order_management",
+      "expected_intent": "order_management",
+      "confidence": 0.9962301923673619,
+      "routing_action": "Retrieve cancel policy / order management path",
+      "probabilities": {
+        "account_management": 0.0012483914272903049,
+        "billing_and_refunds": 0.00018953763033684052,
+        "complaint": 0.0002053198164442553,
+        "greeting_smalltalk": 9.978918376234242e-05,
+        "order_management": 0.9962301923673619,
+        "order_status": 0.0019435774850963435,
+        "out_of_scope": 8.319208970804894e-05
+      }
+    },
+    "Can I get a full refund for my damaged item?": {
+      "predicted_intent": "billing_and_refunds",
+      "expected_intent": "billing_and_refunds",
+      "confidence": 0.9417926184898097,
+      "routing_action": "Retrieve refund policy & process steps (RAG)",
+      "probabilities": {
+        "account_management": 0.018189293027397503,
+        "billing_and_refunds": 0.9417926184898097,
+        "complaint": 0.004394727870286568,
+        "greeting_smalltalk": 0.0019005551047815777,
+        "order_management": 0.0211263707582444,
+        "order_status": 0.01111776570490375,
+        "out_of_scope": 0.0014786690445764555
+      }
+    },
+    "I forgot my password, how can I recover my account?": {
+      "predicted_intent": "account_management",
+      "expected_intent": "account_management",
+      "confidence": 0.9797812989018502,
+      "routing_action": "Retrieve account recovery guide (RAG)",
+      "probabilities": {
+        "account_management": 0.9797812989018502,
+        "billing_and_refunds": 0.006706239834423523,
+        "complaint": 0.002927935171082593,
+        "greeting_smalltalk": 0.001606082202939059,
+        "order_management": 0.004140365535848005,
+        "order_status": 0.003475399533473121,
+        "out_of_scope": 0.001362678820383636
+      }
+    },
+    "Your service is awful, I want to file a formal complaint!": {
+      "predicted_intent": "complaint",
+      "expected_intent": "complaint",
+      "confidence": 0.9759015655692952,
+      "routing_action": "Empathetic apology + Human Escalation Flag",
+      "probabilities": {
+        "account_management": 0.00919151148205459,
+        "billing_and_refunds": 0.0037306722140394537,
+        "complaint": 0.9759015655692952,
+        "greeting_smalltalk": 0.0027521964122330924,
+        "order_management": 0.003060972779399221,
+        "order_status": 0.003317537728128451,
+        "out_of_scope": 0.0020455438148499626
+      }
+    },
+    "What is the distance between the Earth and the Moon?": {
+      "predicted_intent": "out_of_scope",
+      "expected_intent": "out_of_scope",
+      "confidence": 0.9573058351893005,
+      "routing_action": "Polite Out-of-Scope response / Offer human agent",
+      "probabilities": {
+        "account_management": 0.010489246565622593,
+        "billing_and_refunds": 0.010441544298347155,
+        "complaint": 0.0005244582219253012,
+        "greeting_smalltalk": 0.0007118822368576512,
+        "order_management": 0.0008439193438736384,
+        "order_status": 0.01968311414407316,
+        "out_of_scope": 0.9573058351893005
+      }
+    }
+  }
+}
