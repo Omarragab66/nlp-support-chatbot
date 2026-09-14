@@ -157,3 +157,9 @@ Interactive API docs will be available at: `http://localhost:8000/docs`.
 - **POST `/chat`**: Accepts `{"message": "..."}`, returns full pipeline response and diagnostics.
 - **POST `/analyze`**: Accepts `{"text": "..."}`, returns intermediate language, sentiment, and intent predictions.
 
+## (Streamlit UI)
+.\venv\Scripts\streamlit run app/ui.py
+
+
+##  (FastAPI)
+.\venv\Scripts\python -m uvicorn app.api:app --reload --port 8000

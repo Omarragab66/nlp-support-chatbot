@@ -123,6 +123,22 @@ class CustomerSupportPipeline:
         
         with open(kb_path, "r", encoding="utf-8") as f:
             self.kb_chunks = json.load(f)
+
+        # Mapping coarse intents to fine-grained KB chunk intents
+        self.intent_to_kb_map = {
+            "order_status": {"track_order", "delivery_options", "delivery_period"},
+            "order_management": {"cancel_order", "change_order", "place_order", "change_shipping_address", "set_up_shipping_address"},
+            "billing_and_refunds": {"check_invoice", "get_invoice", "check_payment_methods", "payment_issue", "check_refund_policy", "get_refund", "track_refund", "check_cancellation_fee"},
+            "account_management": {"create_account", "edit_account", "delete_account", "switch_account", "recover_password", "registration_problems", "newsletter_subscription", "contact_customer_service"},
+            "complaint": {"complaint", "review", "contact_human_agent"}
+        }
+        
+        # Pre-index chunk indices by coarse intent for fast, efficient filtering
+        self.intent_chunk_indices = {}
+        for coarse_intent, sub_intents in self.intent_to_kb_map.items():
+            self.intent_chunk_indices[coarse_intent] = [
+                i for i, c in enumerate(self.kb_chunks) if c.get("intent") in sub_intents
+            ]
             
         # Groq Client
         self.groq_api_key = os.getenv("GROQ_API_KEY")
@@ -174,14 +190,47 @@ class CustomerSupportPipeline:
             
         return pred_intent, conf
 
-    def retrieve_chunks(self, query, top_k=3, min_similarity=0.35):
+    def retrieve_chunks(self, query, top_k=3, min_similarity=0.35, target_intent=None):
         q_emb = self.embedder.encode([query], convert_to_numpy=True)
         faiss.normalize_L2(q_emb)
-        scores, indices = self.faiss_index.search(q_emb, top_k)
         
+        # 1. Intent-Guided Retrieval:
+        # If a domain intent is predicted, search within that intent's sub-pool first
+        if target_intent and target_intent in self.intent_chunk_indices:
+            candidate_indices = self.intent_chunk_indices[target_intent]
+            if candidate_indices:
+                # Search candidate sub-pool via fast dot product
+                all_vectors = self.faiss_index.reconstruct_n(0, self.faiss_index.ntotal)
+                sub_vectors = all_vectors[candidate_indices]
+                
+                # Cosine similarities = dot product of normalized vectors
+                sim_scores = np.dot(sub_vectors, q_emb.T).flatten()
+                
+                # Get top_k indices sorted descending
+                top_sub_idx = np.argsort(-sim_scores)[:top_k]
+                
+                retrieved = []
+                for s_idx in top_sub_idx:
+                    score = float(sim_scores[s_idx])
+                    if score >= min_similarity:
+                        chunk = self.kb_chunks[candidate_indices[s_idx]]
+                        retrieved.append({
+                            "score": score,
+                            "instruction": chunk["instruction"],
+                            "response": chunk["response"],
+                            "category": chunk.get("category", ""),
+                            "intent": chunk.get("intent", "")
+                        })
+                
+                # If high-confidence matches were found in the predicted intent partition, return them
+                if retrieved:
+                    return retrieved
+
+        # 2. Global FAISS Fallback:
+        scores, indices = self.faiss_index.search(q_emb, top_k)
         retrieved = []
         for score, idx in zip(scores[0], indices[0]):
-            if score >= min_similarity:
+            if score >= min_similarity and idx >= 0:
                 chunk = self.kb_chunks[idx]
                 retrieved.append({
                     "score": float(score),
@@ -252,16 +301,6 @@ Customer question: "{user_message}" """
         # Step 2: Sentiment Detection on normalized text
         sentiment, sent_conf, sent_probs = self.detect_sentiment(analysis_query)
 
-        # Damaged items / angry customer domain keywords
-        damaged_or_angry_terms = [
-            "broken", "damaged", "defective", "fraud", "scam", "terrible", "worst", "unacceptable",
-            "مكسور", "تالف", "معيوب", "نصابين", "سرقة", "زفت", "سيء", "غاضب", "شكوى"
-        ]
-        if any(term in user_message.lower() for term in damaged_or_angry_terms) or any(term in analysis_query.lower() for term in ["broken", "damaged", "defective", "terrible"]):
-            sentiment = "negative"
-            sent_conf = max(sent_conf, 0.95)
-            sent_probs["negative"] = sent_conf
-
         # Step 3: Intent Classification on normalized text
         intent, intent_conf = self.detect_intent(analysis_query)
 
@@ -303,11 +342,11 @@ Customer question: "{user_message}" """
             else:
                 final_response = "I am an e-commerce customer support assistant focused on retail orders, deliveries, refunds, and account queries. I'm unable to assist with topics outside this scope, but if you need help with our store, please let me know or I can connect you with a representative!"
 
-        # Routing Branch 3: Formal Complaint / Damaged Item / High Frustration
-        elif intent == "complaint" or (sentiment == "negative" and intent == "billing_and_refunds") or any(term in user_message.lower() for term in ["مكسور", "broken", "damaged", "تالف"]):
+        # Routing Branch 3: Formal Complaint / Frustrated Customer (Escalation + Empathetic RAG)
+        elif intent == "complaint" or sentiment == "negative":
             routing_action = "Priority Escalation + Empathetic RAG"
             escalated = True
-            chunks = self.retrieve_chunks(analysis_query, top_k=3)
+            chunks = self.retrieve_chunks(analysis_query, top_k=3, target_intent=intent)
             retrieved_chunks = chunks
             if chunks:
                 rag_answer = self.generate_llm_answer(user_message, chunks, detected_sentiment=sentiment, target_language=lang)
@@ -324,7 +363,7 @@ Customer question: "{user_message}" """
 
         # Routing Branch 4: Standard Store Inquiries (Order status, order management, billing, account)
         else:
-            chunks = self.retrieve_chunks(analysis_query, top_k=3)
+            chunks = self.retrieve_chunks(analysis_query, top_k=3, target_intent=intent)
             retrieved_chunks = chunks
             if chunks:
                 final_response = self.generate_llm_answer(user_message, chunks, detected_sentiment=sentiment, target_language=lang)

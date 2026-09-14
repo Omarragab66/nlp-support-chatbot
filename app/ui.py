@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import textwrap
 import streamlit as st
 
 # Add root directory to sys.path
@@ -341,50 +342,52 @@ st.sidebar.markdown("**Latest Request Diagnostics**")
 if latest_telemetry:
     tel = latest_telemetry
     is_escalated = tel.get("priority_escalation", False)
-    
-    st.sidebar.markdown(f"""
+
+    diag_html = textwrap.dedent(f"""\
     <div class="diag-card">
-        <div class="diag-field">
-            <span class="diag-key">Detected Language</span>
-            <span class="diag-val">{tel['detected_language'].upper()} ({tel['language_confidence']:.1%})</span>
-        </div>
-        <div class="diag-field">
-            <span class="diag-key">Detected Sentiment</span>
-            <span class="diag-val {'diag-val-alert' if tel['detected_sentiment'] == 'negative' else ''}">{tel['detected_sentiment'].capitalize()}</span>
-        </div>
-        <div class="diag-field">
-            <span class="diag-key">Classified Intent</span>
-            <span class="diag-val">{tel['detected_intent']}</span>
-        </div>
-        <div class="diag-field">
-            <span class="diag-key">Intent Confidence</span>
-            <span class="diag-val">{tel.get('intent_confidence', 0.0):.1%}</span>
-        </div>
-        <div class="diag-field">
-            <span class="diag-key">Routing Action</span>
-            <span class="diag-val" style="font-size: 10.5px;">{tel['routing_action']}</span>
-        </div>
-        <div class="diag-field">
-            <span class="diag-key">Escalation Status</span>
-            <span class="diag-val {'diag-val-alert' if is_escalated else ''}">{'Escalated (Urgent)' if is_escalated else 'Standard'}</span>
-        </div>
+    <div class="diag-field">
+    <span class="diag-key">Detected Language</span>
+    <span class="diag-val">{tel['detected_language'].upper()} ({tel['language_confidence']:.1%})</span>
     </div>
-    """, unsafe_allow_html=True)
-    
+    <div class="diag-field">
+    <span class="diag-key">Detected Sentiment</span>
+    <span class="diag-val {'diag-val-alert' if tel['detected_sentiment'] == 'negative' else ''}">{tel['detected_sentiment'].capitalize()}</span>
+    </div>
+    <div class="diag-field">
+    <span class="diag-key">Classified Intent</span>
+    <span class="diag-val">{tel['detected_intent']}</span>
+    </div>
+    <div class="diag-field">
+    <span class="diag-key">Intent Confidence</span>
+    <span class="diag-val">{tel.get('intent_confidence', 0.0):.1%}</span>
+    </div>
+    <div class="diag-field">
+    <span class="diag-key">Routing Action</span>
+    <span class="diag-val" style="font-size: 10.5px;">{tel['routing_action']}</span>
+    </div>
+    <div class="diag-field">
+    <span class="diag-key">Escalation Status</span>
+    <span class="diag-val {'diag-val-alert' if is_escalated else ''}">{'Escalated (Urgent)' if is_escalated else 'Standard'}</span>
+    </div>
+    </div>
+    """)
+    st.sidebar.markdown(diag_html, unsafe_allow_html=True)
+
     if tel.get("translated_query"):
         st.sidebar.markdown(f"**Normalized Query (EN):**\n`{tel['translated_query']}`")
-        
+
     if tel.get("retrieved_chunks"):
         with st.sidebar.expander("Retrieved KB Documents (FAISS)", expanded=False):
             for i, chunk in enumerate(tel["retrieved_chunks"], 1):
                 st.markdown(f"**Doc {i}** (Similarity: `{chunk['score']:.3f}` | Intent: `{chunk.get('intent', 'N/A')}`)")
                 st.caption(chunk["response"])
 else:
-    st.sidebar.markdown("""
+    empty_state_html = textwrap.dedent("""\
     <div style="font-size: 12px; color: #737373; padding: 8px 0;">
-        No requests processed yet. Submit a message or pick a test scenario above to inspect pipeline telemetry.
+    No requests processed yet. Submit a message or pick a test scenario above to inspect pipeline telemetry.
     </div>
-    """, unsafe_allow_html=True)
+    """)
+    st.sidebar.markdown(empty_state_html, unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 if st.sidebar.button("Reset Conversation", use_container_width=True):
@@ -403,26 +406,26 @@ for msg in st.session_state.messages:
     sender_label = "You" if is_user else "Store Assistant"
     wrapper_class = "msg-wrapper-user" if is_user else "msg-wrapper-assistant"
     bubble_class = "msg-bubble-user" if is_user else "msg-bubble-assistant"
-    
+
     body_text, notice_text = clean_message_content(msg["content"])
     rtl = is_arabic(body_text)
     dir_class = "text-rtl" if rtl else "text-ltr"
     rendered_body = render_text_lines(body_text, is_rtl=rtl)
-    
+
     notice_html = ""
     if notice_text:
         notice_dir = "text-rtl" if is_arabic(notice_text) else "text-ltr"
         notice_html = f'<div class="escalation-notice {notice_dir}">{notice_text}</div>'
-    
-    msg_html = f"""
+
+    msg_html = textwrap.dedent(f"""\
     <div class="msg-wrapper {wrapper_class}">
-        <div class="msg-sender">{sender_label}</div>
-        <div class="msg-bubble {bubble_class}">
-            <div class="{dir_class}">{rendered_body}</div>
-            {notice_html}
-        </div>
+    <div class="msg-sender">{sender_label}</div>
+    <div class="msg-bubble {bubble_class}">
+    <div class="{dir_class}">{rendered_body}</div>
+    {notice_html}
     </div>
-    """
+    </div>
+    """)
     st.markdown(msg_html, unsafe_allow_html=True)
 
 # --- Chat Input & Execution ---
@@ -437,7 +440,7 @@ if user_input:
     # 2. Process query through pipeline
     with st.spinner("Responding..."):
         result = pipeline.process_message(user_input)
-        
+
         st.session_state.messages.append({
             "role": "assistant",
             "content": result["response"],
