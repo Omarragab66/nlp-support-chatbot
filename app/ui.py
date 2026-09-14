@@ -28,12 +28,10 @@ html, body, [class*="css"], .stApp {
     color: #e5e5e5 !important;
 }
 
-/* Keep Streamlit header minimal but keep the sidebar toggle button visible */
+/* Hide Streamlit default header/footer */
 #MainMenu {visibility: hidden;}
+header {visibility: hidden;}
 footer {visibility: hidden;}
-header[data-testid="stHeader"] {
-    background-color: transparent !important;
-}
 
 /* Custom Minimal Scrollbar */
 ::-webkit-scrollbar {
@@ -51,10 +49,10 @@ header[data-testid="stHeader"] {
     background: #404040;
 }
 
-/* Sidebar Styling: Clean Dark Panel for Evaluation */
+/* Sidebar Styling: Clean Tech Telemetry Panel */
 section[data-testid="stSidebar"] {
-    background-color: #111111 !important;
-    border-right: 1px solid #262626 !important;
+    background-color: #0f1013 !important;
+    border-right: 1px solid #1f2228 !important;
 }
 
 section[data-testid="stSidebar"] h1, 
@@ -63,7 +61,100 @@ section[data-testid="stSidebar"] h3 {
     color: #ffffff !important;
     font-size: 15px !important;
     font-weight: 600 !important;
-    letter-spacing: -0.01em !important;
+}
+
+/* Telemetry Header Badge */
+.telemetry-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 14px;
+}
+.telemetry-badge {
+    background: #1e222b;
+    border: 1px solid #2e3440;
+    color: #8892b0;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Telemetry Pipeline Card */
+.pipe-card {
+    background: #14161b;
+    border: 1px solid #222630;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+.pipe-card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #cbd5e1;
+    margin-bottom: 8px;
+}
+.pipe-card-num {
+    color: #64748b;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+}
+.pipe-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 11.5px;
+}
+.pipe-label {
+    color: #64748b;
+}
+.pipe-val {
+    color: #f1f5f9;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+}
+.pipe-bar-bg {
+    background: #1e2430;
+    height: 4px;
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+}
+.pipe-bar-fill {
+    background: #38bdf8;
+    height: 100%;
+    border-radius: 2px;
+}
+.pipe-val-alert {
+    color: #f87171 !important;
+}
+.pipe-chunk {
+    background: #0d0f13;
+    border: 1px solid #1e222b;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 8px;
+    font-size: 11px;
+}
+.pipe-chunk-meta {
+    display: flex;
+    justify-content: space-between;
+    color: #38bdf8;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    margin-bottom: 4px;
+}
+.pipe-chunk-text {
+    color: #94a3b8;
+    line-height: 1.4;
+    font-size: 10.5px;
 }
 
 /* Main Header */
@@ -312,11 +403,154 @@ if "messages" not in st.session_state:
         }
     ]
 
-# --- Sidebar: Developer / Evaluation Panel ONLY ---
-st.sidebar.markdown("### Developer / Evaluation Panel")
-st.sidebar.caption("Evaluation controls and pipeline inspection telemetry.")
+# --- Sidebar: Developer / Pipeline Telemetry Panel ---
+st.sidebar.markdown("""
+<div class="telemetry-title">
+    <span>Pipeline Telemetry</span>
+    <span class="telemetry-badge">LIVE NLP</span>
+</div>
+""", unsafe_allow_html=True)
 
-st.sidebar.markdown("**Test Scenarios**")
+# Find the most recent telemetry from conversation
+latest_telemetry = None
+for m in reversed(st.session_state.messages):
+    if m.get("telemetry"):
+        latest_telemetry = m["telemetry"]
+        break
+
+if latest_telemetry:
+    tel = latest_telemetry
+    is_escalated = tel.get("priority_escalation", False)
+    lang_code = tel['detected_language'].upper()
+    lang_full = "Arabic" if lang_code == "AR" else ("English" if lang_code == "EN" else lang_code)
+    lang_pct = tel['language_confidence'] * 100
+    
+    sent_name = tel['detected_sentiment'].capitalize()
+    sent_conf_pct = tel.get('sentiment_confidence', 0.0) * 100
+    is_neg = tel['detected_sentiment'] == 'negative'
+    
+    intent_name = tel['detected_intent']
+    intent_conf_pct = tel.get('intent_confidence', 0.0) * 100
+    route_action = tel['routing_action']
+
+    # Chunks HTML
+    chunks_html = ""
+    for c in tel.get("retrieved_chunks", []):
+        score_pct = c['score'] * 100
+        c_intent = c.get('intent', 'general')
+        c_text = c['response'][:110] + "..." if len(c['response']) > 110 else c['response']
+        chunks_html += f"""
+        <div class="pipe-chunk">
+            <div class="pipe-chunk-meta">
+                <span>Similarity: {score_pct:.1f}%</span>
+                <span>[{c_intent}]</span>
+            </div>
+            <div class="pipe-chunk-text">{c_text}</div>
+        </div>
+        """
+
+    telemetry_html = textwrap.dedent(f"""\
+    <!-- 01 Language Detection -->
+    <div class="pipe-card">
+        <div class="pipe-card-header">
+            <span class="pipe-card-num">01</span>
+            <span>Language Detection</span>
+        </div>
+        <div class="pipe-row">
+            <span class="pipe-label">Detected:</span>
+            <span class="pipe-val">{lang_code} ({lang_full})</span>
+        </div>
+        <div class="pipe-row">
+            <span class="pipe-label">Confidence:</span>
+            <span class="pipe-val">{lang_pct:.1f}%</span>
+        </div>
+        <div class="pipe-bar-bg">
+            <div class="pipe-bar-fill" style="width: {min(max(lang_pct, 5), 100)}%;"></div>
+        </div>
+    </div>
+
+    <!-- 02 Sentiment Tone -->
+    <div class="pipe-card">
+        <div class="pipe-card-header">
+            <span class="pipe-card-num">02</span>
+            <span>Sentiment Tone</span>
+        </div>
+        <div class="pipe-row">
+            <span class="pipe-label">Sentiment:</span>
+            <span class="pipe-val">{sent_name}</span>
+        </div>
+        <div class="pipe-row">
+            <span class="pipe-label">Frustration Flag:</span>
+            <span class="pipe-val {'pipe-val-alert' if is_neg else ''}">{'True (Elevated)' if is_neg else 'False (Normal)'}</span>
+        </div>
+        <div class="pipe-row">
+            <span class="pipe-label">Confidence:</span>
+            <span class="pipe-val">{sent_conf_pct:.1f}%</span>
+        </div>
+        <div class="pipe-bar-bg">
+            <div class="pipe-bar-fill" style="width: {min(max(sent_conf_pct, 5), 100)}%; background: {'#ef4444' if is_neg else '#38bdf8'};"></div>
+        </div>
+    </div>
+
+    <!-- 03 Intent & Routing -->
+    <div class="pipe-card">
+        <div class="pipe-card-header">
+            <span class="pipe-card-num">03</span>
+            <span>Intent & Routing</span>
+        </div>
+        <div class="pipe-row">
+            <span class="pipe-label">Intent:</span>
+            <span class="pipe-val">{intent_name}</span>
+        </div>
+        <div class="pipe-row">
+            <span class="pipe-label">Route Action:</span>
+            <span class="pipe-val" style="font-size: 10.5px;">{route_action}</span>
+        </div>
+        <div class="pipe-row">
+            <span class="pipe-label">Confidence:</span>
+            <span class="pipe-val">{intent_conf_pct:.1f}%</span>
+        </div>
+    </div>
+
+    <!-- 04 Grounded Q&A RAG -->
+    <div class="pipe-card">
+        <div class="pipe-card-header">
+            <span class="pipe-card-num">04</span>
+            <span>Grounded Q&A RAG</span>
+        </div>
+        <div class="pipe-row">
+            <span class="pipe-label">Provider:</span>
+            <span class="pipe-val" style="font-size: 10px;">local_grounded_synthesizer</span>
+        </div>
+        <div class="pipe-row">
+            <span class="pipe-label">Priority Escalated:</span>
+            <span class="pipe-val {'pipe-val-alert' if is_escalated else ''}">{'Priority High' if is_escalated else 'Standard'}</span>
+        </div>
+        {'<div style="margin-top: 8px; font-size: 10.5px; color: #64748b;">Retrieved Knowledge Chunks:</div>' + chunks_html if chunks_html else ''}
+    </div>
+    """)
+    st.sidebar.markdown(telemetry_html, unsafe_allow_html=True)
+else:
+    empty_state_html = textwrap.dedent("""\
+    <div style="font-size: 12px; color: #64748b; padding: 12px; background: #14161b; border: 1px solid #222630; border-radius: 8px;">
+    No requests processed yet. Send a message to see real-time pipeline telemetry.
+    </div>
+    """)
+    st.sidebar.markdown(empty_state_html, unsafe_allow_html=True)
+
+st.sidebar.markdown("<br>", unsafe_allow_html=True)
+if st.sidebar.button("Reset Conversation", use_container_width=True):
+    st.session_state.messages = [
+        {
+            "role": "assistant",
+            "content": "Hi! How can I help you today with your order, refund, delivery, or account?",
+            "telemetry": None
+        }
+    ]
+    st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("<div style='font-size: 11px; color: #64748b; margin-bottom: 8px;'>QUICK TEST PROMPTS</div>", unsafe_allow_html=True)
 scenarios = [
     ("Order Status Tracking", "Where is my order #55231 and when will it arrive?"),
     ("Damaged Item & Refund (EN)", "I received a damaged item yesterday and nobody is answering! I demand a full refund right now!"),
@@ -331,76 +565,7 @@ for label, query in scenarios:
     if st.sidebar.button(label, use_container_width=True):
         selected_scenario = query
 
-st.sidebar.markdown("---")
 
-# Find the most recent telemetry from conversation
-latest_telemetry = None
-for m in reversed(st.session_state.messages):
-    if m.get("telemetry"):
-        latest_telemetry = m["telemetry"]
-        break
-
-st.sidebar.markdown("**Latest Request Diagnostics**")
-if latest_telemetry:
-    tel = latest_telemetry
-    is_escalated = tel.get("priority_escalation", False)
-
-    diag_html = textwrap.dedent(f"""\
-    <div class="diag-card">
-    <div class="diag-field">
-    <span class="diag-key">Detected Language</span>
-    <span class="diag-val">{tel['detected_language'].upper()} ({tel['language_confidence']:.1%})</span>
-    </div>
-    <div class="diag-field">
-    <span class="diag-key">Detected Sentiment</span>
-    <span class="diag-val {'diag-val-alert' if tel['detected_sentiment'] == 'negative' else ''}">{tel['detected_sentiment'].capitalize()}</span>
-    </div>
-    <div class="diag-field">
-    <span class="diag-key">Classified Intent</span>
-    <span class="diag-val">{tel['detected_intent']}</span>
-    </div>
-    <div class="diag-field">
-    <span class="diag-key">Intent Confidence</span>
-    <span class="diag-val">{tel.get('intent_confidence', 0.0):.1%}</span>
-    </div>
-    <div class="diag-field">
-    <span class="diag-key">Routing Action</span>
-    <span class="diag-val" style="font-size: 10.5px;">{tel['routing_action']}</span>
-    </div>
-    <div class="diag-field">
-    <span class="diag-key">Escalation Status</span>
-    <span class="diag-val {'diag-val-alert' if is_escalated else ''}">{'Escalated (Urgent)' if is_escalated else 'Standard'}</span>
-    </div>
-    </div>
-    """)
-    st.sidebar.markdown(diag_html, unsafe_allow_html=True)
-
-    if tel.get("translated_query"):
-        st.sidebar.markdown(f"**Normalized Query (EN):**\n`{tel['translated_query']}`")
-
-    if tel.get("retrieved_chunks"):
-        with st.sidebar.expander("Retrieved KB Documents (FAISS)", expanded=False):
-            for i, chunk in enumerate(tel["retrieved_chunks"], 1):
-                st.markdown(f"**Doc {i}** (Similarity: `{chunk['score']:.3f}` | Intent: `{chunk.get('intent', 'N/A')}`)")
-                st.caption(chunk["response"])
-else:
-    empty_state_html = textwrap.dedent("""\
-    <div style="font-size: 12px; color: #737373; padding: 8px 0;">
-    No requests processed yet. Submit a message or pick a test scenario above to inspect pipeline telemetry.
-    </div>
-    """)
-    st.sidebar.markdown(empty_state_html, unsafe_allow_html=True)
-
-st.sidebar.markdown("---")
-if st.sidebar.button("Reset Conversation", use_container_width=True):
-    st.session_state.messages = [
-        {
-            "role": "assistant",
-            "content": "Hi! How can I help you today with your order, refund, delivery, or account?",
-            "telemetry": None
-        }
-    ]
-    st.rerun()
 
 # --- Main Customer Chat Display (Clean, No AI/Model Details) ---
 for msg in st.session_state.messages:
