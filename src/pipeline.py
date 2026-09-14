@@ -13,6 +13,29 @@ from groq import Groq
 # Load environment
 load_dotenv()
 
+LANGUAGE_NAMES = {
+    "ar": "Arabic",
+    "en": "English",
+    "fr": "French",
+    "de": "German",
+    "es": "Spanish",
+    "it": "Italian",
+    "ru": "Russian",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "tr": "Turkish",
+    "nl": "Dutch",
+    "pt": "Portuguese",
+    "sw": "Swahili",
+    "th": "Thai",
+    "vi": "Vietnamese",
+    "pl": "Polish",
+    "el": "Greek",
+    "bg": "Bulgarian",
+    "hi": "Hindi",
+    "ur": "Urdu"
+}
+
 # --- PyTorch Sentiment Model Definitions ---
 class SimpleTokenizer:
     def __init__(self, max_vocab=15000):
@@ -112,6 +135,25 @@ class CustomerSupportPipeline:
         conf = float(np.max(probs))
         return pred_lang, conf
 
+    def translate_to_english(self, text, source_lang="ar"):
+        if not self.groq_client or not text:
+            return text
+        try:
+            resp = self.groq_client.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=[
+                    {"role": "system", "content": "You are a professional customer support translator. Translate the following customer message accurately into clear English. Return ONLY the direct English translation without any notes or explanations."},
+                    {"role": "user", "content": text}
+                ],
+                max_tokens=400,
+                temperature=0.1
+            )
+            tr = resp.choices[0].message.content.strip()
+            return tr if tr else text
+        except Exception as e:
+            print(f"Translation warning: {e}")
+            return text
+
     def detect_sentiment(self, text):
         seq = torch.tensor([self.sent_tokenizer.encode(text)], dtype=torch.long).to(self.device)
         with torch.no_grad():
@@ -150,15 +192,24 @@ class CustomerSupportPipeline:
                 })
         return retrieved
 
-    def generate_llm_answer(self, user_message, chunks, detected_sentiment):
+    def generate_llm_answer(self, user_message, chunks, detected_sentiment, target_language="en"):
         if not self.groq_client:
             return "I apologize, but the Groq API key is not configured. Please set GROQ_API_KEY in .env."
             
         context_str = "\n\n".join([f"Support Doc {i+1}: {c['response']}" for i, c in enumerate(chunks)])
         
+        lang_name = LANGUAGE_NAMES.get(target_language, "English")
+        if target_language != "en":
+            lang_instruction = f"""
+LANGUAGE REQUIREMENT: The customer wrote their message in {lang_name}.
+You MUST formulate your ENTIRE final response in natural, fluent, and polite {lang_name}.
+Translate all procedures, steps, and policies accurately into {lang_name}."""
+        else:
+            lang_instruction = ""
+            
         system_prompt = f"""You are a helpful, professional customer support assistant for an online retailer.
-Answer the customer's question using ONLY the information in the retrieved support responses below.
-If the customer sounds frustrated ({detected_sentiment}), acknowledge their frustration with a polite and sincere apology before answering.
+Answer the customer's question using ONLY the information in the retrieved support responses below.{lang_instruction}
+If the customer sounds frustrated or received a damaged/broken item ({detected_sentiment}), acknowledge that with a sincere, polite, and empathetic apology before answering.
 If the retrieved context does not cover the question, say so honestly and offer to escalate to a human agent rather than guessing."""
 
         user_prompt = f"""Context (retrieved past support responses):
@@ -173,7 +224,7 @@ Customer question: "{user_message}" """
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                max_tokens=250,
+                max_tokens=600,
                 temperature=0.2
             )
             return resp.choices[0].message.content.strip()
@@ -188,11 +239,31 @@ Customer question: "{user_message}" """
         # Step 1: Language Detection
         lang, lang_conf = self.detect_language(user_message)
 
-        # Step 2: Sentiment Detection
-        sentiment, sent_conf, sent_probs = self.detect_sentiment(user_message)
+        # Step 1.5: Multilingual Query Normalization
+        # If query is in a non-English language (e.g. Arabic), translate to English
+        # so English-trained intent classifier, sentiment classifier, and FAISS vector index work accurately.
+        translated_query = None
+        if lang != "en" and lang_conf >= 0.40:
+            translated_query = self.translate_to_english(user_message, source_lang=lang)
+            analysis_query = translated_query
+        else:
+            analysis_query = user_message
 
-        # Step 3: Intent Classification
-        intent, intent_conf = self.detect_intent(user_message)
+        # Step 2: Sentiment Detection on normalized text
+        sentiment, sent_conf, sent_probs = self.detect_sentiment(analysis_query)
+
+        # Damaged items / angry customer domain keywords
+        damaged_or_angry_terms = [
+            "broken", "damaged", "defective", "fraud", "scam", "terrible", "worst", "unacceptable",
+            "مكسور", "تالف", "معيوب", "نصابين", "سرقة", "زفت", "سيء", "غاضب", "شكوى"
+        ]
+        if any(term in user_message.lower() for term in damaged_or_angry_terms) or any(term in analysis_query.lower() for term in ["broken", "damaged", "defective", "terrible"]):
+            sentiment = "negative"
+            sent_conf = max(sent_conf, 0.95)
+            sent_probs["negative"] = sent_conf
+
+        # Step 3: Intent Classification on normalized text
+        intent, intent_conf = self.detect_intent(analysis_query)
 
         # Step 4: Routing & Response Logic
         escalated = False
@@ -203,7 +274,16 @@ Customer question: "{user_message}" """
         # Routing Branch 1: Greetings & Small Talk (Zero retrieval needed)
         if intent == "greeting_smalltalk":
             routing_action = "Direct Smalltalk Response (No RAG)"
-            if sentiment == "positive":
+            if lang == "ar":
+                final_response = "أهلاً بك! مرحباً بك في خدمة عملاء المتجر. كيف يمكنني مساعدتك اليوم بخصوص طلباتك، التوصيل، استرجاع المبالغ، أو إدارة حسابك؟"
+            elif lang != "en":
+                final_response = self.generate_llm_answer(
+                    user_message,
+                    chunks=[{"response": "Welcome to our store support. How can I assist you with your order or account today?"}],
+                    detected_sentiment="positive",
+                    target_language=lang
+                )
+            elif sentiment == "positive":
                 final_response = "Hello! It's a pleasure to assist you today. How can I help you with your order or account?"
             else:
                 final_response = "Hello! Welcome to our customer support. How can I assist you today?"
@@ -211,39 +291,55 @@ Customer question: "{user_message}" """
         # Routing Branch 2: Out of Scope
         elif intent == "out_of_scope":
             routing_action = "Out-of-Scope Fallback"
-            final_response = "I am an e-commerce customer support assistant focused on retail orders, deliveries, refunds, and account queries. I'm unable to assist with topics outside this scope, but if you need help with our store, please let me know or I can connect you with a representative!"
+            if lang == "ar":
+                final_response = "أنا مساعد آلي متخصص في خدمة عملاء المتجر (الطلبات، التوصيل، الفواتير، واسترجاع المنتجات). لا أستطيع المساعدة في مواضيع خارج هذا النطاق، ولكن إذا كان لديك أي استفسار يخص المتجر يسعدني جداً مساعدتك أو تحويلك لممثل خدمة العملاء!"
+            elif lang != "en":
+                final_response = self.generate_llm_answer(
+                    user_message,
+                    chunks=[{"response": "I am an e-commerce customer support assistant focused on retail orders, deliveries, refunds, and account queries. I'm unable to assist with topics outside this scope."}],
+                    detected_sentiment="neutral",
+                    target_language=lang
+                )
+            else:
+                final_response = "I am an e-commerce customer support assistant focused on retail orders, deliveries, refunds, and account queries. I'm unable to assist with topics outside this scope, but if you need help with our store, please let me know or I can connect you with a representative!"
 
-        # Routing Branch 3: Formal Complaint / High Frustration
-        elif intent == "complaint" or (sentiment == "negative" and intent == "billing_and_refunds"):
+        # Routing Branch 3: Formal Complaint / Damaged Item / High Frustration
+        elif intent == "complaint" or (sentiment == "negative" and intent == "billing_and_refunds") or any(term in user_message.lower() for term in ["مكسور", "broken", "damaged", "تالف"]):
             routing_action = "Priority Escalation + Empathetic RAG"
             escalated = True
-            chunks = self.retrieve_chunks(user_message, top_k=3)
+            chunks = self.retrieve_chunks(analysis_query, top_k=3)
             retrieved_chunks = chunks
             if chunks:
-                rag_answer = self.generate_llm_answer(user_message, chunks, detected_sentiment=sentiment)
-                final_response = f"I am truly sorry for the inconvenience and frustration you have experienced.\n\n{rag_answer}\n\n[System Notice]: Your inquiry has been flagged for priority human support. A senior customer care agent will review this shortly."
+                rag_answer = self.generate_llm_answer(user_message, chunks, detected_sentiment=sentiment, target_language=lang)
+                if lang == "ar":
+                    final_response = f"{rag_answer}\n\n[إشعار النظام]: تم تصعيد تذكرتك بعناية إلى فريق الدعم البشري للمتابعة الفورية معك."
+                else:
+                    final_response = f"I am truly sorry for the inconvenience and frustration you have experienced.\n\n{rag_answer}\n\n[System Notice]: Your inquiry has been flagged for priority human support. A senior customer care agent will review this shortly."
                 grounded = True
             else:
-                final_response = "I sincerely apologize for the frustration this has caused you. I have flagged your issue for urgent review by a human support manager who will assist you directly."
+                if lang == "ar":
+                    final_response = "أعتذر بشدة عن أي إزعاج واجهته. لقد قمت بتحويل طلبك لمشرف خدمة العملاء للتواصل معك وحل المشكلة فوراً."
+                else:
+                    final_response = "I sincerely apologize for the frustration this has caused you. I have flagged your issue for urgent review by a human support manager who will assist you directly."
 
         # Routing Branch 4: Standard Store Inquiries (Order status, order management, billing, account)
         else:
-            chunks = self.retrieve_chunks(user_message, top_k=3)
+            chunks = self.retrieve_chunks(analysis_query, top_k=3)
             retrieved_chunks = chunks
             if chunks:
-                final_response = self.generate_llm_answer(user_message, chunks, detected_sentiment=sentiment)
+                final_response = self.generate_llm_answer(user_message, chunks, detected_sentiment=sentiment, target_language=lang)
                 grounded = True
             else:
-                final_response = "I apologize, but I couldn't find specific details for your question in our support records. Would you like me to connect you with a human representative for further assistance?"
-
-        # If detected language is non-English, add a helpful note
-        if lang != "en" and lang_conf > 0.85:
-            final_response = f"[Note: Query detected in language '{lang}']: " + final_response
+                if lang == "ar":
+                    final_response = "عذراً، لم أجد تفاصيل محددة بخصوص سؤالك في سجلات المتجر. هل ترغب في أن أقوم بتحويلك إلى أحد ممثلي خدمة العملاء للمساعدة؟"
+                else:
+                    final_response = "I apologize, but I couldn't find specific details for your question in our support records. Would you like me to connect you with a human representative for further assistance?"
 
         return {
             "response": final_response,
             "detected_language": lang,
             "language_confidence": lang_conf,
+            "translated_query": translated_query,
             "detected_sentiment": sentiment,
             "sentiment_confidence": sent_conf,
             "sentiment_probabilities": sent_probs,

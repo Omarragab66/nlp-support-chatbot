@@ -43,6 +43,8 @@ presets = [
     ("📦 Order Status", "Where is my order #55231 and when will it arrive?"),
     ("😠 Frustrated Refund", "I received a damaged item yesterday and nobody is answering! I demand a full refund right now!"),
     ("🔑 Password Reset", "I forgot my account password, how can I recover it?"),
+    ("🇪🇬 استرجاع لمنتج مكسور", "استلمت المنتج مكسور وعايز فلوسي ترجع"),
+    ("👋 تحية بالعربية", "السلام عليكم، كيف حالك؟"),
     ("🌌 Out of Scope", "What is the speed of light in vacuum?")
 ]
 
@@ -74,6 +76,8 @@ for msg in st.session_state.messages:
                     st.metric("Escalation", esc)
                     
                 st.markdown(f"**Routing Action:** `{tel['routing_action']}`")
+                if tel.get("translated_query"):
+                    st.markdown(f"**Normalized Query (English):** `{tel['translated_query']}`")
                 
                 if tel.get("retrieved_chunks"):
                     st.markdown("**Retrieved Knowledge Base Chunks (FAISS):**")
@@ -114,6 +118,8 @@ if user_input:
                     st.metric("Escalation", esc)
                     
                 st.markdown(f"**Routing Action:** `{result['routing_action']}`")
+                if result.get("translated_query"):
+                    st.markdown(f"**Normalized Query (English):** `{result['translated_query']}`")
                 
                 if result.get("retrieved_chunks"):
                     st.markdown("**Retrieved Knowledge Base Chunks (FAISS):**")
