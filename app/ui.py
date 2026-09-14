@@ -28,10 +28,12 @@ html, body, [class*="css"], .stApp {
     color: #e5e5e5 !important;
 }
 
-/* Hide Streamlit default header/footer */
+/* Keep Streamlit header minimal but keep the sidebar toggle button visible */
 #MainMenu {visibility: hidden;}
-header {visibility: hidden;}
 footer {visibility: hidden;}
+header[data-testid="stHeader"] {
+    background-color: transparent !important;
+}
 
 /* Custom Minimal Scrollbar */
 ::-webkit-scrollbar {
