@@ -260,19 +260,25 @@ Translate all procedures, steps, and policies accurately into {lang_name}."""
         if detected_sentiment == "negative":
             tone_instruction = """
 TONE & EMOTIONAL CONDITIONING: The customer appears frustrated, upset, or experienced an issue.
-Acknowledge their feelings with a sincere, polite, and empathetic apology before answering or addressing their concern.
+Acknowledge their feelings with a sincere, polite, and empathetic apology before addressing their concern.
 If the retrieved context does not cover the question, acknowledge the issue honestly and offer priority escalation to a human agent."""
         else:
             tone_instruction = """
 TONE & BEHAVIOR: The customer is making a regular inquiry with a neutral/polite tone.
 Maintain a warm, clear, professional, and helpful retail support tone.
-Do NOT apologize or sound apologetic when there is no mistake or complaint.
-If the retrieved context covers the general topic or settings (e.g. account settings, navigation), provide the relevant guidance directly. If specific granular details are not in the context, guide the user on the closest available steps and offer further help without unnecessary panic or aggressive escalation."""
+Do NOT apologize or sound apologetic when there is no mistake, defect, or complaint."""
+
+        grounding_instruction = """
+STRICT GROUNDING & ANTI-HALLUCINATION RULES:
+1. Answer the customer's question using ONLY the facts and procedures present in the retrieved support responses.
+2. Do NOT invent specific procedural details, UI element names, confirmation mechanisms (e.g. "a confirmation email will be sent"), or numbered walkthrough steps that are NOT explicitly present in the retrieved context.
+3. When the retrieved context describes a topic in general or abstract terms (e.g. "access your account settings to update your information"), your answer MUST stay at that same level of generality. Do not fabricate a multi-step tutorial to make the answer look more detailed than the source material supports.
+4. You may use clear formatting, polite phrasing, or bullet points for readability, provided every factual instruction traces directly to the retrieved documents."""
 
         system_prompt = f"""You are a helpful, professional customer support assistant for an online retailer.
 Answer the customer's question using the information in the retrieved support responses below.{lang_instruction}
 {tone_instruction}
-Do NOT hallucinate store policies or procedures not supported by the context."""
+{grounding_instruction}"""
 
         user_prompt = f"""Context (retrieved past support responses):
 {context_str}
