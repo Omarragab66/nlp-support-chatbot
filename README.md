@@ -157,9 +157,14 @@ Interactive API docs will be available at: `http://localhost:8000/docs`.
 - **POST `/chat`**: Accepts `{"message": "..."}`, returns full pipeline response and diagnostics.
 - **POST `/analyze`**: Accepts `{"text": "..."}`, returns intermediate language, sentiment, and intent predictions.
 
-## (Streamlit UI)
-.\venv\Scripts\streamlit run app/ui.py
+---
 
+## Known Limitations & Design Notes
 
-##  (FastAPI)
-.\venv\Scripts\python -m uvicorn app.api:app --reload --port 8000
+1. **Granular Field Coverage in Benchmark Dataset (Bitext)**:
+   - In the underlying `bitext/Bitext-customer-support-llm-chatbot-training-dataset`, the `ACCOUNT` category contains intents like `edit_account`, `switch_account`, and `recover_password`. However, specific fields (such as direct mentions of `"email address"`) are represented abstractly as `"personal information"`, `"account data"`, and generic platform navigation steps (`Account Settings`).
+   - Rather than introducing synthetic or ad-hoc overrides, the pipeline relies on **Intent-Guided Retrieval** paired with strict **Sentiment-Conditioned Tone Prompting**. For neutral inquiries, the system provides standard account navigation procedures without unwarranted apologies or false escalations.
+
+2. **Sentiment-Conditioned Prompting Architecture**:
+   - Apologies and priority escalation notices are strictly constrained to genuine negative sentiment (`detected_sentiment == 'negative'`) or explicit complaints.
+   - Neutral and positive inquiries receive direct, professional, and helpful customer support answers aligned with retail standards.

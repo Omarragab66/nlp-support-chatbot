@@ -256,10 +256,23 @@ Translate all procedures, steps, and policies accurately into {lang_name}."""
         else:
             lang_instruction = ""
             
+        # Dynamic Tone & Behavior Instruction based on Sentiment
+        if detected_sentiment == "negative":
+            tone_instruction = """
+TONE & EMOTIONAL CONDITIONING: The customer appears frustrated, upset, or experienced an issue.
+Acknowledge their feelings with a sincere, polite, and empathetic apology before answering or addressing their concern.
+If the retrieved context does not cover the question, acknowledge the issue honestly and offer priority escalation to a human agent."""
+        else:
+            tone_instruction = """
+TONE & BEHAVIOR: The customer is making a regular inquiry with a neutral/polite tone.
+Maintain a warm, clear, professional, and helpful retail support tone.
+Do NOT apologize or sound apologetic when there is no mistake or complaint.
+If the retrieved context covers the general topic or settings (e.g. account settings, navigation), provide the relevant guidance directly. If specific granular details are not in the context, guide the user on the closest available steps and offer further help without unnecessary panic or aggressive escalation."""
+
         system_prompt = f"""You are a helpful, professional customer support assistant for an online retailer.
-Answer the customer's question using ONLY the information in the retrieved support responses below.{lang_instruction}
-If the customer sounds frustrated or received a damaged/broken item ({detected_sentiment}), acknowledge that with a sincere, polite, and empathetic apology before answering.
-If the retrieved context does not cover the question, say so honestly and offer to escalate to a human agent rather than guessing."""
+Answer the customer's question using the information in the retrieved support responses below.{lang_instruction}
+{tone_instruction}
+Do NOT hallucinate store policies or procedures not supported by the context."""
 
         user_prompt = f"""Context (retrieved past support responses):
 {context_str}
