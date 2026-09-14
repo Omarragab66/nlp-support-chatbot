@@ -346,7 +346,7 @@ Customer question: "{user_message}" """
             else:
                 final_response = "Hello! Welcome to our customer support. How can I assist you today?"
 
-        # Routing Branch 2: Out of Scope
+        # Routing Branch 2: Explicit Out of Scope
         elif intent == "out_of_scope":
             routing_action = "Out-of-Scope Fallback"
             if lang == "ar":
@@ -363,11 +363,29 @@ Customer question: "{user_message}" """
 
         # Routing Branch 3: Formal Complaint / Frustrated Customer (Escalation + Empathetic RAG)
         elif intent == "complaint" or sentiment == "negative":
-            routing_action = "Priority Escalation + Empathetic RAG"
-            escalated = True
             chunks = self.retrieve_chunks(analysis_query, top_k=3, target_intent=intent)
             retrieved_chunks = chunks
-            if chunks:
+            
+            # Grounding check: If no relevant store chunks matched at all, and it's not an explicit store complaint intent,
+            # this is an out-of-scope / non-store query (e.g. general trivia/science triggering spurious features).
+            if not chunks and intent != "complaint":
+                routing_action = "Out-of-Scope Fallback"
+                intent = "out_of_scope"
+                intent_conf = max(intent_conf, 0.90)
+                if lang == "ar":
+                    final_response = "أنا مساعد آلي متخصص في خدمة عملاء المتجر (الطلبات، التوصيل، الفواتير، واسترجاع المنتجات). لا أستطيع المساعدة في مواضيع خارج هذا النطاق، ولكن إذا كان لديك أي استفسار يخص المتجر يسعدني جداً مساعدتك!"
+                elif lang != "en":
+                    final_response = self.generate_llm_answer(
+                        user_message,
+                        chunks=[{"response": "I am an e-commerce customer support assistant focused on retail orders, deliveries, refunds, and account queries. I'm unable to assist with topics outside this scope."}],
+                        detected_sentiment="neutral",
+                        target_language=lang
+                    )
+                else:
+                    final_response = "I am an e-commerce customer support assistant focused on retail orders, deliveries, refunds, and account queries. I'm unable to assist with topics outside this scope, but if you need help with our store, please let me know!"
+            elif chunks:
+                routing_action = "Priority Escalation + Empathetic RAG"
+                escalated = True
                 rag_answer = self.generate_llm_answer(user_message, chunks, detected_sentiment=sentiment, target_language=lang)
                 if lang == "ar":
                     final_response = f"{rag_answer}\n\n[إشعار النظام]: تم تصعيد تذكرتك بعناية إلى فريق الدعم البشري للمتابعة الفورية معك."
@@ -375,6 +393,8 @@ Customer question: "{user_message}" """
                     final_response = f"I am truly sorry for the inconvenience and frustration you have experienced.\n\n{rag_answer}\n\n[System Notice]: Your inquiry has been flagged for priority human support. A senior customer care agent will review this shortly."
                 grounded = True
             else:
+                routing_action = "Priority Escalation + Empathetic RAG"
+                escalated = True
                 if lang == "ar":
                     final_response = "أعتذر بشدة عن أي إزعاج واجهته. لقد قمت بتحويل طلبك لمشرف خدمة العملاء للتواصل معك وحل المشكلة فوراً."
                 else:
@@ -388,10 +408,12 @@ Customer question: "{user_message}" """
                 final_response = self.generate_llm_answer(user_message, chunks, detected_sentiment=sentiment, target_language=lang)
                 grounded = True
             else:
+                # If zero store knowledge matched for a standard inquiry, treat gracefully as out-of-scope/unrecognized
+                routing_action = "Out-of-Scope Fallback"
                 if lang == "ar":
-                    final_response = "عذراً، لم أجد تفاصيل محددة بخصوص سؤالك في سجلات المتجر. هل ترغب في أن أقوم بتحويلك إلى أحد ممثلي خدمة العملاء للمساعدة؟"
+                    final_response = "أنا مساعد آلي متخصص في خدمة عملاء المتجر (الطلبات، الشحن، الفواتير، الحسابات). هذا الاستفسار خارج نطاق خدمات المتجر المتاحة، ولكن يسعدني دائماً مساعدتك في أي شيء يخص مشترياتك وطلباتك!"
                 else:
-                    final_response = "I apologize, but I couldn't find specific details for your question in our support records. Would you like me to connect you with a human representative for further assistance?"
+                    final_response = "I am an e-commerce customer support assistant specialized in orders, shipping, billing, and account services. This request appears to be outside our store support scope, but I'm happy to help with any inquiries regarding our products or your orders!"
 
         return {
             "response": final_response,
